@@ -20,6 +20,8 @@ spec:
           auth_enabled: false
         singleBinary:
           replicas: 1
+          persistence:
+            enabled: false
           resources:
             requests:
               cpu: 100m
