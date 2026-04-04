@@ -7,38 +7,35 @@ spec:
   project: argocd
   source:
     repoURL: https://grafana.github.io/helm-charts
-    chart: loki
-    targetRevision: "5.47.2"
+    chart: loki-stack
+    targetRevision: "2.10.2"
     helm:
       values: |
-        deploymentMode: SingleBinary
         loki:
-          commonConfig:
-            replication_factor: 1
-          storage:
-            type: filesystem
-          auth_enabled: false
-        singleBinary:
-          replicas: 1
+          enabled: true
           persistence:
             enabled: false
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 300m
-              memory: 512Mi
-        monitoring:
-          selfMonitoring:
-            enabled: false
-            grafanaAgent:
-              installOperator: false
-          lokiCanary:
-            enabled: false
-        test:
+          config:
+            auth_enabled: false
+            storage_config:
+              boltdb_shipper:
+                active_index_directory: /tmp/loki/index
+                cache_location: /tmp/loki/index_cache
+                shared_store: filesystem
+              filesystem:
+                directory: /tmp/loki/chunks
+            schema_config:
+              configs:
+                - from: "2020-10-24"
+                  store: boltdb-shipper
+                  object_store: filesystem
+                  schema: v11
+                  index:
+                    prefix: index_
+                    period: 24h
+        promtail:
           enabled: false
-        gateway:
+        grafana:
           enabled: false
   destination:
     server: https://kubernetes.default.svc
