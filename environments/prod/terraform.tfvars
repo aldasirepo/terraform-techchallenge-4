@@ -33,7 +33,7 @@ enable_ipv6             = false
 # VARIÁVEIS DO MÓDULO EKS-CLUSTER
 # =============================================================================
 eks_cluster_name       = "togglemaster-eks"
-eks_kubernetes_version = "1.32"
+eks_kubernetes_version = "1.30"
 
 eks_tags = {
   team        = "DevOps"
