@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-tables
+  namespace: default
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: init-tables
+        image: postgres:15
+        envFrom:
+        - secretRef:
+            name: rds-password
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "Criando tabelas no banco togglemaster..."
+
+          psql -h togglemaster-db.cszm64wiakld.us-east-1.rds.amazonaws.com \
+               -U togglemaster_admin -d togglemaster \
+               -c "CREATE TABLE IF NOT EXISTS api_keys (
+                 id SERIAL PRIMARY KEY,
+                 name VARCHAR(100) NOT NULL,
+                 key_hash VARCHAR(64) NOT NULL UNIQUE,
+                 is_active BOOLEAN DEFAULT true,
+                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+               );"
+
+          psql -h togglemaster-db.cszm64wiakld.us-east-1.rds.amazonaws.com \
+               -U togglemaster_admin -d togglemaster \
+               -c "CREATE TABLE IF NOT EXISTS flags (
+                 id SERIAL PRIMARY KEY,
+                 name VARCHAR(100) UNIQUE NOT NULL,
+                 description TEXT,
+                 is_enabled BOOLEAN NOT NULL DEFAULT false,
+                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+               );"
+
+          psql -h togglemaster-db.cszm64wiakld.us-east-1.rds.amazonaws.com \
+               -U togglemaster_admin -d togglemaster \
+               -c "CREATE TABLE IF NOT EXISTS targeting_rules (
+                 id SERIAL PRIMARY KEY,
+                 flag_name VARCHAR(100) UNIQUE NOT NULL,
+                 is_enabled BOOLEAN NOT NULL DEFAULT true,
+                 rules JSONB NOT NULL,
+                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+               );"
+
+          echo "Tabelas criadas com sucesso!"

@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+resources:
+  - project.yaml
+  - root-app.yaml
+  - monitoring/argocd-app-prometheus.yaml
+  - monitoring/argocd-app-loki.yaml
+  - monitoring/argocd-app-promtail.yaml
+  - monitoring/argocd-app-otel.yaml
+  - monitoring/togglemaster-dashboard-configmap.yaml
+  - monitoring/alert-rules.yaml

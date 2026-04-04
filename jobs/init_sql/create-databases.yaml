@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-databases-v2
+  namespace: default
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: create-dbs
+        image: postgres:15
+        env:
+        - name: PGPASSWORD
+          value: "lqUIb46gsHG<c1mVn$$dVX8LC8|i"
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "Creating databases..."
+          psql -h "togglemaster-db.cszm64wiakld.us-east-1.rds.amazonaws.com" \
+                -p "5432" \
+                -U "togglemaster_admin" \
+                -d "postgres" \
+                -c "CREATE DATABASE togglemaster_prod;" || echo "togglemaster_prod already exists"
+          echo "Database created successfully!"
+          echo "Listing databases:"
+          psql -h "togglemaster-db.cszm64wiakld.us-east-1.rds.amazonaws.com" \
+                -p "5432" \
+                -U "togglemaster_admin" \
+                -d "postgres" \
+                -c "\l"

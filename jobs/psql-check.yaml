@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: psql-check
+  namespace: default
+spec:
+  restartPolicy: Never
+  containers:
+  - name: psql
+    image: postgres:15
+    envFrom:
+    - secretRef:
+        name: rds-password
+    command: ["sh", "-c"]
+    args:
+    - |
+      psql -h togglemaster-db.cszm64wiakld.us-east-1.rds.amazonaws.com \
+           -U togglemaster_admin \
+           -d postgres \
+           -c "\l"
