@@ -146,3 +146,12 @@ module "resources" {
   aws_region  = var.aws_region
   tags        = var.tags
 }
+
+module "argocd" {
+  source = "../../modules/argocd"
+
+  tags         = var.tags
+  cd_apps_path = "${path.module}/../../CD/apps"
+
+  depends_on = [module.eks, module.kubernetes]
+}

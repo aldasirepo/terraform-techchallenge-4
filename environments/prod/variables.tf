@@ -410,3 +410,7 @@ variable "sqs_queue_url" {
   type        = string
   default     = ""
 }
+variable "argocd_chart_version" {
+  type    = string
+  default = "7.7.11"
+}
