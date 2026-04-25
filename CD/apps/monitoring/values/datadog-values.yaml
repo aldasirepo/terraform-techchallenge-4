@@ -1,5 +1,6 @@
 datadog:
-  apiKey: "3579db41ffbbab9f96f6511457938d3b"
+  apiKeyExistingSecret: datadog-secret
+  apiKeyExistingSecretKey: api-key
   site: "datadoghq.com"
 
   apm:

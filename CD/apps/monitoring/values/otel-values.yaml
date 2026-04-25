@@ -33,7 +33,7 @@ config:
       endpoint: "http://loki.monitoring.svc:3100/loki/api/v1/push"
     datadog:
       api:
-        key: "3579db41ffbbab9f96f6511457938d3b"
+        key: ${DD_API_KEY}
         site: "datadoghq.com"
     logging:
       verbosity: normal
@@ -64,3 +64,12 @@ ports:
     containerPort: 4318
     servicePort: 4318
     protocol: TCP
+
+# Injeta a API key do secret no OTel Collector
+extraEnvs:
+  - name: DD_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: datadog-secret
+        key: api-key
+        namespace: datadog

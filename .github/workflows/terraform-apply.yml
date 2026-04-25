@@ -1,0 +1,176 @@
+name: Terraform Apply
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'environments/prod/**'
+      - 'modules/**'
+
+env:
+  AWS_REGION: us-east-1
+  WORK_DIR: environments/prod/
+
+jobs:
+  terraform-apply:
+    name: Terraform Apply Production
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Terraform Init
+        working-directory: ${{ env.WORK_DIR }}
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ${{ env.WORK_DIR }}
+        run: terraform apply -auto-approve -var="rds_password=${{ secrets.RDS_PASSWORD }}" --var-file=terraform.tfvars
+
+      - name: Get Terraform Outputs
+        id: tf-outputs
+        working-directory: ${{ env.WORK_DIR }}
+        run: |
+          echo "rds_endpoint=$(terraform output -raw rds_endpoint)" >> $GITHUB_OUTPUT
+          echo "redis_endpoint=$(terraform output -raw redis_endpoint)" >> $GITHUB_OUTPUT
+          echo "sqs_url=$(terraform output -raw sqs_queue_url)" >> $GITHUB_OUTPUT
+
+      - name: Get RDS Password from Secrets Manager
+        id: rds-password
+        run: |
+          SECRET_ID=$(aws secretsmanager list-secrets --region ${{ env.AWS_REGION }} \
+            --query "SecretList[?starts_with(Name, 'rds!')].Name" \
+            --output text)
+          SECRET_VALUE=$(aws secretsmanager get-secret-value \
+            --secret-id "$SECRET_ID" \
+            --region ${{ env.AWS_REGION }} \
+            --query SecretString --output text)
+          RDS_PASS=$(echo $SECRET_VALUE | python3 -c "import sys,json; print(json.load(sys.stdin)['password'])")
+          RDS_PASS_ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$RDS_PASS', safe=''))")
+          echo "rds_password=$RDS_PASS" >> $GITHUB_OUTPUT
+          echo "rds_password_encoded=$RDS_PASS_ENCODED" >> $GITHUB_OUTPUT
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name togglemaster-eks --region ${{ env.AWS_REGION }}
+
+      - name: Create Datadog K8s Secrets
+        run: |
+          kubectl create namespace datadog --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic datadog-secret \
+            --from-literal=api-key=${{ secrets.DD_API_KEY }} \
+            -n datadog --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic datadog-secret \
+            --from-literal=api-key=${{ secrets.DD_API_KEY }} \
+            -n monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create Microservices K8s Secrets
+        run: |
+          RDS_ENDPOINT="${{ steps.tf-outputs.outputs.rds_endpoint }}"
+          REDIS_ENDPOINT="${{ steps.tf-outputs.outputs.redis_endpoint }}"
+          SQS_URL="${{ steps.tf-outputs.outputs.sqs_url }}"
+          RDS_PASS="${{ steps.rds-password.outputs.rds_password }}"
+          RDS_PASS_ENCODED="${{ steps.rds-password.outputs.rds_password_encoded }}"
+
+          # auth-service
+          kubectl create secret generic auth-service-db-secret \
+            --from-literal=POSTGRES_USER=togglemaster_admin \
+            --from-literal=POSTGRES_PASSWORD="$RDS_PASS" \
+            --from-literal=POSTGRES_DB=togglemaster \
+            --from-literal=POSTGRES_PORT=5432 \
+            --from-literal=MASTER_KEY=masterkey123 \
+            --from-literal=DATABASE_URL="postgres://togglemaster_admin:${RDS_PASS_ENCODED}@${RDS_ENDPOINT}/togglemaster?sslmode=require" \
+            -n auth-service --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic auth-service-db-secret-host \
+            --from-literal=POSTGRES_HOST="$RDS_ENDPOINT" \
+            -n auth-service --dry-run=client -o yaml | kubectl apply -f -
+
+          # flag-service
+          kubectl create secret generic flag-service-db-secret \
+            --from-literal=POSTGRES_USER=togglemaster_admin \
+            --from-literal=POSTGRES_PASSWORD="$RDS_PASS" \
+            --from-literal=POSTGRES_DB=togglemaster \
+            --from-literal=POSTGRES_PORT=5432 \
+            --from-literal=AUTH_SERVICE_URL=http://app-auth-service.auth-service.svc.cluster.local:8001 \
+            --from-literal=DATABASE_URL="postgres://togglemaster_admin:${RDS_PASS_ENCODED}@${RDS_ENDPOINT}/togglemaster?sslmode=require" \
+            -n flag-service --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic flag-service-db-secret-host \
+            --from-literal=POSTGRES_HOST="$RDS_ENDPOINT" \
+            -n flag-service --dry-run=client -o yaml | kubectl apply -f -
+
+          # targeting-service
+          kubectl create secret generic targeting-service-db-secret \
+            --from-literal=POSTGRES_USER=togglemaster_admin \
+            --from-literal=POSTGRES_PASSWORD="$RDS_PASS" \
+            --from-literal=POSTGRES_DB=togglemaster \
+            --from-literal=POSTGRES_PORT=5432 \
+            --from-literal=AUTH_SERVICE_URL=http://app-auth-service.auth-service.svc.cluster.local:8001 \
+            --from-literal=DATABASE_URL="postgres://togglemaster_admin:${RDS_PASS_ENCODED}@${RDS_ENDPOINT}/togglemaster?sslmode=require" \
+            -n targeting-service --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic targeting-service-db-secret-host \
+            --from-literal=POSTGRES_HOST="$RDS_ENDPOINT" \
+            -n targeting-service --dry-run=client -o yaml | kubectl apply -f -
+
+          # evaluation-service
+          kubectl create secret generic evaluation-service-db-secret \
+            --from-literal=REDIS_URL="redis://${REDIS_ENDPOINT}:6379" \
+            --from-literal=FLAG_SERVICE_URL=http://app-flag-service.flag-service.svc.cluster.local:8002 \
+            --from-literal=TARGETING_SERVICE_URL=http://app-targeting-service.targeting-service.svc.cluster.local:8003 \
+            --from-literal=AWS_SQS_URL="$SQS_URL" \
+            --from-literal=AWS_REGION=us-east-1 \
+            --from-literal=SERVICE_API_KEY=${{ secrets.SERVICE_API_KEY }} \
+            -n evaluation-service --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic evaluation-service-db-secret-host \
+            --from-literal=REDIS_URL="redis://${REDIS_ENDPOINT}:6379" \
+            --from-literal=AWS_REGION=us-east-1 \
+            --from-literal=AWS_SQS_URL="$SQS_URL" \
+            -n evaluation-service --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic shared-api-key \
+            --from-literal=SERVICE_API_KEY=${{ secrets.SERVICE_API_KEY }} \
+            -n evaluation-service --dry-run=client -o yaml | kubectl apply -f -
+
+          # analytics-service
+          kubectl create secret generic analytics-service-db-secret \
+            --from-literal=AWS_REGION=us-east-1 \
+            --from-literal=AWS_SQS_URL="$SQS_URL" \
+            --from-literal=AWS_DYNAMODB_TABLE=togglemaster-prod \
+            -n analytics-service --dry-run=client -o yaml | kubectl apply -f -
+
+          echo "✅ Todos os secrets criados!"
+
+      - name: Run init SQL tables
+        run: |
+          kubectl apply -f jobs/init_sql/configmap.yaml
+          kubectl delete job init-tables --ignore-not-found
+          kubectl apply -f jobs/init_sql/init-tables.yaml
+          kubectl wait --for=condition=complete job/init-tables --timeout=120s || true
+          echo "✅ Tabelas criadas!"

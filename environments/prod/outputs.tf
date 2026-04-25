@@ -28,3 +28,28 @@ output "kubernetes_namespace_analytics" {
   description = "Namespace analytics-service"
   value       = module.kubernetes.namespace_analytics
 }
+
+# Outputs para o workflow CI/CD
+output "rds_endpoint" {
+  description = "Endpoint do RDS PostgreSQL"
+  value       = module.rds.rds_instance_endpoint
+  sensitive   = false
+}
+
+output "redis_endpoint" {
+  description = "Endpoint do ElastiCache Redis"
+  value       = module.rds.elasticache_endpoint
+  sensitive   = false
+}
+
+output "sqs_queue_url" {
+  description = "URL da fila SQS"
+  value       = module.resources.sqs_queue_url
+  sensitive   = false
+}
+
+output "eks_cluster_name" {
+  description = "Nome do cluster EKS"
+  value       = module.eks.eks_cluster_name
+  sensitive   = false
+}
