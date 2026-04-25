@@ -37,7 +37,25 @@ resource "helm_release" "argocd" {
   depends_on = [null_resource.helm_repo_argo, kubernetes_namespace_v1.argocd]
 }
 
-# Aplica os ArgoCD Applications (root-app + monitoramento) após o ArgoCD subir
+# Instala Ingress NGINX
+resource "null_resource" "ingress_nginx" {
+  provisioner "local-exec" {
+    command     = "kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.6/deploy/static/provider/cloud/deploy.yaml"
+    interpreter = ["powershell", "-Command"]
+  }
+  depends_on = [helm_release.argocd]
+}
+
+# Instala Sealed Secrets
+resource "null_resource" "sealed_secrets" {
+  provisioner "local-exec" {
+    command     = "helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets; helm repo update; helm upgrade --install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --wait"
+    interpreter = ["powershell", "-Command"]
+  }
+  depends_on = [helm_release.argocd]
+}
+
+# Aplica os manifests CD/apps/ após o ArgoCD subir
 resource "null_resource" "argocd_apps" {
   triggers = {
     helm_release_id = helm_release.argocd.id
@@ -47,4 +65,6 @@ resource "null_resource" "argocd_apps" {
     command     = "kubectl apply --server-side --force-conflicts -k \"${var.cd_apps_path}\""
     interpreter = ["powershell", "-Command"]
   }
+
+  depends_on = [helm_release.argocd]
 }

@@ -15,26 +15,8 @@ spec:
           enabled: true
           persistence:
             enabled: false
-          config:
-            auth_enabled: false
-            storage_config:
-              boltdb_shipper:
-                active_index_directory: /tmp/loki/index
-                cache_location: /tmp/loki/index_cache
-                shared_store: filesystem
-              filesystem:
-                directory: /tmp/loki/chunks
-            schema_config:
-              configs:
-                - from: "2020-10-24"
-                  store: boltdb-shipper
-                  object_store: filesystem
-                  schema: v11
-                  index:
-                    prefix: index_
-                    period: 24h
         promtail:
-          enabled: false
+          enabled: true
         grafana:
           enabled: false
   destination:
