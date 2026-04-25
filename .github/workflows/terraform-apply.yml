@@ -57,18 +57,11 @@ jobs:
           echo "redis_endpoint=$(terraform output -raw redis_endpoint)" >> $GITHUB_OUTPUT
           echo "sqs_url=$(terraform output -raw sqs_queue_url)" >> $GITHUB_OUTPUT
 
-      - name: Get RDS Password from Secrets Manager
+      - name: Encode RDS Password
         id: rds-password
         run: |
-          SECRET_ID=$(aws secretsmanager list-secrets --region ${{ env.AWS_REGION }} \
-            --query "SecretList[?starts_with(Name, 'rds!')].Name" \
-            --output text)
-          SECRET_VALUE=$(aws secretsmanager get-secret-value \
-            --secret-id "$SECRET_ID" \
-            --region ${{ env.AWS_REGION }} \
-            --query SecretString --output text)
-          RDS_PASS=$(echo $SECRET_VALUE | python3 -c "import sys,json; print(json.load(sys.stdin)['password'])")
-          RDS_PASS_ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$RDS_PASS', safe=''))")
+          RDS_PASS="${{ secrets.RDS_PASSWORD }}"
+          RDS_PASS_ENCODED=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$RDS_PASS")
           echo "rds_password=$RDS_PASS" >> $GITHUB_OUTPUT
           echo "rds_password_encoded=$RDS_PASS_ENCODED" >> $GITHUB_OUTPUT
 
