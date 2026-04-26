@@ -70,7 +70,7 @@ jobs:
 
       - name: Apply ArgoCD Apps
         run: |
-          kubectl apply --server-side --force-conflicts -k CD/base/
+          kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=180s || true
           kubectl apply --server-side --force-conflicts -k CD/apps/
 
       - name: Get Terraform Outputs
