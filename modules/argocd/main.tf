@@ -1,10 +1,3 @@
-resource "null_resource" "helm_repo_argo" {
-  provisioner "local-exec" {
-    command     = "helm repo add argo https://argoproj.github.io/argo-helm; helm repo update argo"
-    interpreter = ["powershell", "-Command"]
-  }
-}
-
 resource "kubernetes_namespace_v1" "argocd" {
   metadata {
     name = var.argocd_namespace
@@ -34,36 +27,30 @@ resource "helm_release" "argocd" {
   timeout = 600
   wait    = true
 
-  depends_on = [null_resource.helm_repo_argo, kubernetes_namespace_v1.argocd]
+  depends_on = [kubernetes_namespace_v1.argocd]
 }
 
-# Instala Ingress NGINX
 resource "null_resource" "ingress_nginx" {
   provisioner "local-exec" {
-    command     = "kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.6/deploy/static/provider/cloud/deploy.yaml"
-    interpreter = ["powershell", "-Command"]
+    command = "kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.6/deploy/static/provider/cloud/deploy.yaml"
   }
   depends_on = [helm_release.argocd]
 }
 
-# Instala Sealed Secrets
 resource "null_resource" "sealed_secrets" {
   provisioner "local-exec" {
-    command     = "helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets; helm repo update; helm upgrade --install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --wait"
-    interpreter = ["powershell", "-Command"]
+    command = "helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets && helm repo update && helm upgrade --install sealed-secrets sealed-secrets/sealed-secrets -n sealed-secrets --create-namespace --wait"
   }
   depends_on = [helm_release.argocd]
 }
 
-# Aplica os manifests CD/apps/ após o ArgoCD subir
 resource "null_resource" "argocd_apps" {
   triggers = {
     helm_release_id = helm_release.argocd.id
   }
 
   provisioner "local-exec" {
-    command     = "kubectl apply --server-side --force-conflicts -k \"${var.cd_apps_path}\""
-    interpreter = ["powershell", "-Command"]
+    command = "kubectl apply --server-side --force-conflicts -k ${var.cd_apps_path}"
   }
 
   depends_on = [helm_release.argocd]
