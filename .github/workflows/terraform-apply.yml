@@ -12,6 +12,7 @@ on:
 env:
   AWS_REGION: us-east-1
   WORK_DIR: environments/prod/
+  CLUSTER_NAME: togglemaster-eks
 
 jobs:
   terraform-apply:
@@ -43,11 +44,34 @@ jobs:
 
       - name: Terraform Init
         working-directory: ${{ env.WORK_DIR }}
-        run: terraform init
+        run: terraform init -upgrade
 
       - name: Terraform Apply
         working-directory: ${{ env.WORK_DIR }}
         run: terraform apply -auto-approve -var="rds_password=${{ secrets.RDS_PASSWORD }}" --var-file=terraform.tfvars
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+
+      - name: Install Ingress NGINX
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.6/deploy/static/provider/cloud/deploy.yaml
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=120s || true
+
+      - name: Install Sealed Secrets
+        run: |
+          helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
+          helm repo update
+          helm upgrade --install sealed-secrets sealed-secrets/sealed-secrets \
+            -n sealed-secrets --create-namespace --wait
+
+      - name: Apply ArgoCD Apps
+        run: |
+          kubectl apply --server-side --force-conflicts -k CD/base/
+          kubectl apply --server-side --force-conflicts -k CD/apps/
 
       - name: Get Terraform Outputs
         id: tf-outputs
@@ -64,9 +88,6 @@ jobs:
           RDS_PASS_ENCODED=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$RDS_PASS")
           echo "rds_password=$RDS_PASS" >> $GITHUB_OUTPUT
           echo "rds_password_encoded=$RDS_PASS_ENCODED" >> $GITHUB_OUTPUT
-
-      - name: Update kubeconfig
-        run: aws eks update-kubeconfig --name togglemaster-eks --region ${{ env.AWS_REGION }}
 
       - name: Create Datadog K8s Secrets
         run: |
@@ -167,3 +188,12 @@ jobs:
           kubectl apply -f jobs/init_sql/init-tables.yaml
           kubectl wait --for=condition=complete job/init-tables --timeout=120s || true
           echo "✅ Tabelas criadas!"
+
+      - name: Final Status
+        run: |
+          echo "=== Nodes ==="
+          kubectl get nodes
+          echo "=== ArgoCD Apps ==="
+          kubectl get applications -n argocd
+          echo "=== Pods ==="
+          kubectl get pods -A | grep -E "service|argocd|monitoring"
