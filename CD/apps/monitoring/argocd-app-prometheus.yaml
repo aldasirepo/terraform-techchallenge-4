@@ -10,8 +10,54 @@ spec:
     chart: kube-prometheus-stack
     targetRevision: "58.7.2"
     helm:
-      valueFiles:
-        - values/prometheus-values.yaml
+      values: |
+        grafana:
+          enabled: true
+          adminPassword: "admin123"
+          service:
+            type: ClusterIP
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            path: /grafana(/|$)(.*)
+            annotations:
+              nginx.ingress.kubernetes.io/rewrite-target: /$2
+          grafana.ini:
+            server:
+              root_url: "%(protocol)s://%(domain)s/grafana"
+              serve_from_sub_path: true
+          additionalDataSources:
+            - name: Loki
+              type: loki
+              url: http://loki.monitoring.svc:3100
+              access: proxy
+        prometheus:
+          prometheusSpec:
+            retention: 6h
+            resources:
+              requests:
+                cpu: 200m
+                memory: 400Mi
+              limits:
+                cpu: 500m
+                memory: 800Mi
+            storageSpec: {}
+        alertmanager:
+          alertmanagerSpec:
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+        nodeExporter:
+          enabled: true
+        kubeStateMetrics:
+          enabled: true
+        kubeEtcd:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
