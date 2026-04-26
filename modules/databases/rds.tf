@@ -12,6 +12,7 @@ module "db" {
   db_name  = var.rds_db_name
   username = var.rds_username
   password = var.rds_password
+  manage_master_user_password = false
   port     = var.rds_port
 
   iam_database_authentication_enabled = var.rds_iam_database_authentication_enabled
