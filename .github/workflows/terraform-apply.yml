@@ -102,6 +102,20 @@ jobs:
             --from-literal=api-key=${{ secrets.DD_API_KEY }} \
             -n monitoring --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Create Grafana Secrets
+        run: |
+          kubectl create secret generic grafana-secrets \
+            --from-literal=SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }} \
+            -n monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+          echo "✅ Grafana secrets criados!"
+
+      - name: Apply Grafana Provisioning
+        run: |
+          kubectl apply -f CD/apps/monitoring/grafana-provisioning-configmap.yaml
+          kubectl apply -f CD/apps/monitoring/togglemaster-dashboard-configmap.yaml
+          echo "✅ Grafana provisioning aplicado!"
+
       - name: Create Microservices K8s Secrets
         run: |
           RDS_ENDPOINT="${{ steps.tf-outputs.outputs.rds_endpoint }}"
