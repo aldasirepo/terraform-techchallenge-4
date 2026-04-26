@@ -26,20 +26,12 @@ spec:
             server:
               root_url: "%(protocol)s://%(domain)s/grafana"
               serve_from_sub_path: true
-          datasources:
-            datasources.yaml:
-              apiVersion: 1
-              datasources:
-                - name: Prometheus
-                  type: prometheus
-                  url: http://prometheus-operated.monitoring.svc:9090
-                  access: proxy
-                  isDefault: true
-                - name: Loki
-                  type: loki
-                  url: http://loki.monitoring.svc:3100
-                  access: proxy
-                  isDefault: false
+          additionalDataSources:
+            - name: Loki
+              type: loki
+              url: http://loki.monitoring.svc:3100
+              access: proxy
+              isDefault: false
         prometheus:
           prometheusSpec:
             retention: 6h
