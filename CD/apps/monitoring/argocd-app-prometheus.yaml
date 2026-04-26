@@ -26,12 +26,34 @@ spec:
             server:
               root_url: "%(protocol)s://%(domain)s/grafana"
               serve_from_sub_path: true
+          envFromSecret: grafana-secrets
           additionalDataSources:
             - name: Loki
               type: loki
               url: http://loki.monitoring.svc:3100
               access: proxy
               isDefault: false
+          sidecar:
+            dashboards:
+              enabled: true
+              label: grafana_dashboard
+              labelValue: "1"
+              searchNamespace: monitoring
+            datasources:
+              enabled: true
+              label: grafana_datasource
+              labelValue: "1"
+              searchNamespace: monitoring
+            alerts:
+              enabled: true
+              label: grafana_provisioning
+              labelValue: "1"
+              searchNamespace: monitoring
+            notifiers:
+              enabled: true
+              label: grafana_provisioning
+              labelValue: "1"
+              searchNamespace: monitoring
         prometheus:
           prometheusSpec:
             retention: 6h
