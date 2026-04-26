@@ -1,0 +1,112 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-contact-points
+  namespace: monitoring
+  labels:
+    grafana_provisioning: "1"
+data:
+  contact-points.yaml: |
+    apiVersion: 1
+    contactPoints:
+      - orgId: 1
+        name: PagerDuty
+        receivers:
+          - uid: bfka6pwcrs16pe
+            type: pagerduty
+            settings:
+              integrationKey: f3f48c79a99a4509c07cbdcb78d858bc
+            disableResolveMessage: false
+      - orgId: 1
+        name: Slack
+        receivers:
+          - uid: cfka7ovbcfxmob
+            type: slack
+            settings:
+              url: $__env{SLACK_WEBHOOK_URL}
+            disableResolveMessage: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-notification-policies
+  namespace: monitoring
+  labels:
+    grafana_provisioning: "1"
+data:
+  notification-policies.yaml: |
+    apiVersion: 1
+    policies:
+      - orgId: 1
+        receiver: PagerDuty
+        group_by:
+          - grafana_folder
+          - alertname
+        routes:
+          - receiver: Slack
+            object_matchers:
+              - - alertname
+                - =
+                - "ToggleMaster - Pod CrashLoop"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alert-rules
+  namespace: monitoring
+  labels:
+    grafana_provisioning: "1"
+data:
+  alert-rules.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: togglemaster-alerts
+        folder: ToggleMaster
+        interval: 1m
+        rules:
+          - uid: dfka8hdb50veoe
+            title: "ToggleMaster - Pod CrashLoop"
+            condition: C
+            for: 1m
+            annotations:
+              summary: "Pod em CrashLoop detectado no ToggleMaster"
+              description: "Um ou mais pods dos microsservicos do ToggleMaster estao reiniciando continuamente."
+              runbook_url: "https://github.com/aldasirepo/tech-challenge-4"
+            noDataState: NoData
+            execErrState: Error
+            data:
+              - refId: A
+                datasourceUid: prometheus
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                model:
+                  expr: 'rate(kube_pod_container_status_restarts_total{namespace=~"auth-service|flag-service|targeting-service|evaluation-service|analytics-service"}[5m]) * 60 > 0'
+                  editorMode: code
+                  instant: true
+                  refId: A
+              - refId: B
+                datasourceUid: __expr__
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                model:
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  refId: B
+              - refId: C
+                datasourceUid: __expr__
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                model:
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [0]
+                  refId: C
