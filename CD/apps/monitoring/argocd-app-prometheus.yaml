@@ -32,11 +32,6 @@ spec:
               url: http://loki.monitoring.svc:3100
               access: proxy
               isDefault: false
-            - name: Prometheus
-              type: prometheus
-              url: http://prometheus-operated.monitoring.svc:9090
-              access: proxy
-              isDefault: true
         prometheus:
           prometheusSpec:
             retention: 6h
