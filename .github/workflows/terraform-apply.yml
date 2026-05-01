@@ -134,37 +134,6 @@ jobs:
             -n monitoring --dry-run=client -o yaml | kubectl apply -f -
           echo "✅ Grafana secrets criados!"
 
-      - name: Inject Slack Webhook into Grafana deployment
-        run: |
-          kubectl rollout status deployment/prometheus-grafana -n monitoring --timeout=180s || true
-          kubectl set env deployment/prometheus-grafana -n monitoring \
-            SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}
-          kubectl rollout status deployment/prometheus-grafana -n monitoring --timeout=120s || true
-          echo "✅ SLACK_WEBHOOK_URL injetado no Grafana!"
-
-      - name: Fix Prometheus datasource UID no Grafana
-        run: |
-          # Aguarda Grafana ficar pronto
-          sleep 30
-          kubectl port-forward svc/prometheus-grafana -n monitoring 3000:80 &
-          sleep 15
-
-          PASS=$(kubectl get secret prometheus-grafana -n monitoring \
-            -o jsonpath="{.data.admin-password}" | base64 -d)
-
-          # Pega ID do datasource Prometheus
-          DS_ID=$(curl -s -u admin:$PASS http://localhost:3000/grafana/api/datasources \
-            | python3 -c "import sys,json; ds=[d for d in json.load(sys.stdin) if d['type']=='prometheus']; print(ds[0]['id']) if ds else print('')")
-
-          if [ -n "$DS_ID" ]; then
-            curl -s -u admin:$PASS -X PUT http://localhost:3000/grafana/api/datasources/$DS_ID \
-              -H "Content-Type: application/json" \
-              -d "{\"id\":$DS_ID,\"uid\":\"prometheus\",\"name\":\"prometheus\",\"type\":\"prometheus\",\"access\":\"proxy\",\"url\":\"http://prometheus-kube-prometheus-prometheus.monitoring:9090\",\"jsonData\":{\"httpMethod\":\"POST\"},\"isDefault\":false}"
-            echo "✅ Prometheus datasource UID corrigido!"
-          else
-            echo "⚠️ Prometheus datasource não encontrado ainda — corrigir manualmente"
-          fi
-
       - name: Apply Grafana Provisioning
         run: |
           kubectl apply -f CD/apps/monitoring/grafana-provisioning-configmap.yaml
