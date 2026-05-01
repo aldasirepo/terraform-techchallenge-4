@@ -19,9 +19,9 @@ spec:
           enabled: true
         grafana:
           enabled: false
-          sidecar:
-            datasources:
-              defaultDatasourceEnabled: false
+        grafana.datasource:
+          isDefault: false
+        grafana.sidecar.datasources.defaultDatasourceEnabled: false
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
@@ -35,5 +35,6 @@ spec:
     - group: ""
       kind: ConfigMap
       name: loki-loki-stack
-      jsonPointers:
-        - /data/loki-stack-datasource.yaml
+      namespace: monitoring
+      jqPathExpressions:
+        - .data["loki-stack-datasource.yaml"]
