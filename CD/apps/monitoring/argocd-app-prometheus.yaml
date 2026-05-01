@@ -33,6 +33,7 @@ spec:
               url: http://loki.monitoring.svc:3100
               access: proxy
               isDefault: false
+              uid: loki
           sidecar:
             dashboards:
               enabled: true
