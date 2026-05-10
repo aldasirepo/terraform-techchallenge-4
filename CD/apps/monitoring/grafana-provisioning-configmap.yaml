@@ -49,6 +49,11 @@ data:
               - - alertname
                 - =
                 - "ToggleMaster - Pod CrashLoop"
+          - receiver: github-self-healing
+            object_matchers:
+              - - alertname
+                - =
+                - "ToggleMaster - Pod CrashLoop"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -70,6 +75,10 @@ data:
             title: "ToggleMaster - Pod CrashLoop"
             condition: C
             for: 1m
+            labels:
+              namespace: "auth-service"
+              deployment: "auth-service"
+              severity: "critical"
             annotations:
               summary: "Pod em CrashLoop detectado no ToggleMaster"
               description: "Um ou mais pods dos microsservicos do ToggleMaster estao reiniciando continuamente."
